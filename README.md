@@ -74,10 +74,7 @@ spot-isaacsim/
 │   │   ├── omnigraph/            # ROS2 bridge (OmniGraph)
 │   │   ├── control/              # Grasp execution state machine
 │   │   └── spot_config/          # Robot configuration
-│   ├── spot_isaaclab/          # Isaac Lab environments (deprecated)
-│   ├── spot_vlm/               # VLM tracking (deprecated)
-│   ├── tools/                  # Utility scripts (install, convert, patch)
-│   └── dataset_generation/     # Synthetic data generation
+│   └── tools/                  # Utility scripts (install, patch)
 ├── justfile                    # Task runner (run 'just' for all commands)
 └── pyproject.toml              # uv dependency management
 ```
