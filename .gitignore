@@ -9,6 +9,7 @@ pyvenv.cfg
 .venv/
 venv/
 env/
+uv.lock
 
 *.egg-info/
 .eggs/
