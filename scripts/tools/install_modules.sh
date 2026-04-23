@@ -97,6 +97,9 @@ uv sync --inexact
 # 6. Write variables to activate file
 echo "# Isaac AGN Grasp Configs" >> $VENV/bin/activate
 echo "export UV_PROJECT_ENVIRONMENT=$VENV" >> $VENV/bin/activate
+echo "export ROS_DISTRO=\${ROS_DISTRO:-jazzy}" >> $VENV/bin/activate
+echo "export RMW_IMPLEMENTATION=\${RMW_IMPLEMENTATION:-rmw_cyclonedds_cpp}" >> $VENV/bin/activate
+echo "export LD_LIBRARY_PATH=\"\${VIRTUAL_ENV}/lib/python3.11/site-packages/isaacsim/exts/isaacsim.ros2.bridge/\${ROS_DISTRO}/lib:\${LD_LIBRARY_PATH}\"" >> $VENV/bin/activate
 source $VENV/bin/activate
 
 echo "[6/6] Done."
