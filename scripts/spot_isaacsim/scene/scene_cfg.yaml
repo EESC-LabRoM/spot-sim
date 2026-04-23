@@ -1,0 +1,139 @@
+# Scene configuration for spot_isaacsim
+#
+# Objects and assets defined here are loaded automatically by SceneBuilder.
+# To disable an entry without removing it, set `enabled: false`.
+# To add a new object, append an entry under `objects` or `assets`.
+#
+# Supported object types:
+#   static_cube   — FixedCuboid (no physics)
+#   dynamic_cube  — DynamicCuboid (physics, falls under gravity)
+#   Common optional fields (objects and assets):
+#     orientation_rpy: [roll, pitch, yaw]  — rotation in degrees, ZYX extrinsic
+#                                            (default: [0.0, 0.0, 0.0])
+#
+# Supported asset types:
+#   usd_asset     — any USD/USDC/USDZ file from the assets/ folder
+#                   (usd_path is relative to the project root)
+#                   Optional fields:
+#                     gravity_enabled: false  — disables gravity for all rigid
+#                                              bodies inside the asset (default: true)
+#                     mass: 1.0               — override mass in kg on the first rigid
+#                                              body found; omit to keep baked-in mass
+#                     static_friction: 0.7    — static friction on all collision prims
+#                                              (default: 0.7)
+#                     dynamic_friction: 0.7   — dynamic friction on all collision prims
+#                                              (default: 0.7)
+#
+# Supported stage types (stage.type):
+#   warehouse_simple  — Isaac/Environments/Simple_Warehouse/warehouse.usd
+#   warehouse_full    — Isaac/Environments/Full_Warehouse/full_warehouse.usd
+#   (or provide usd_path directly for a custom stage)
+
+# ---- Robot -----------------------------------------------------------------
+
+robot:
+  spawn_position: [-2.5, 0.0, 0.7]       # x, y, z in metres
+  initial_goal_pose: [-2.0, -1.0, 0.0]     # x, y, yaw (metres, metres, radians)
+
+# ---- Stage / environment -----------------------------------------------
+# When stage.enabled is true the stage provides the floor and the ground
+# plane below is automatically skipped.
+
+stage:
+  enabled: true
+  type: warehouse_simple
+  prim_path: /World/Warehouse
+  position: [0.0, 0.0, 0.0]
+  scale: [1.0, 1.0, 1.0]
+  usd_path: assets/clutter/warehouse.usd
+
+# ---- Fallback ground plane (used when stage.enabled is false) ----------
+
+ground:
+  prim_path: /World/GroundPlane
+  size: 10.0
+  z_position: 0.0
+  color: [0.5, 0.5, 0.5]
+
+light:
+  type: dome
+  prim_path: /World/DomeLight
+  intensity: 4000.0
+  color: [0.9, 0.9, 0.9]
+
+# ---- Primitive objects -------------------------------------------------
+
+objects:
+  - name: table
+    type: static_cube
+    prim_path: /World/Table
+    position: [1.2, 0.0, 0.15]
+    scale: [0.6, 1.0, 0.3]
+    color: [0.4, 0.3, 0.2]
+    enabled: false
+
+  - name: target
+    type: dynamic_cube
+    prim_path: /World/Target
+    position: [1.2, -0.3, 0.5]
+    scale: [0.05, 0.05, 0.05]
+    color: [1.0, 0.0, 0.0]
+    mass: 0.1
+    enabled: false
+
+  # - name: static_cube
+  #   type: static_cube
+  #   prim_path: /World/StaticCube
+  #   position: [1.2, 0.3, 0.75]
+  #   scale: [0.04, 0.04, 0.04]
+  #   color: [0.0, 0.0, 1.0]
+
+# ---- USD assets from assets/ folder ------------------------------------
+# Set enabled: true to load an asset into the scene.
+
+assets:
+  - name: drill
+    type: usd_asset
+    prim_path: /World/Drill_tool
+    usd_path: assets/drill/drill.usd
+    position: [1.0, -0.25, 0.7]
+    orientation_rpy: [90.0, 0.0, 90.0]  # roll, pitch, yaw in degrees
+    scale: [0.011, 0.011, 0.011]
+    mass: 0.8
+    enabled: false
+
+  # - name: jar
+  #   type: usd_asset
+  #   prim_path: /World/Jar
+  #   usd_path: assets/jar/jar.usd
+  #   position: [1.15, -0.2, 0.75]
+  #   orientation_rpy: [-90.0, 0.0, 0.0]  # roll, pitch, yaw in degrees
+  #   enabled: true
+  #   gravity_enabled: true
+
+  # - name: veja
+  #   type: usd_asset
+  #   prim_path: /World/Veja
+  #   usd_path: assets/veja/veja.usd
+  #   position: [1.15, -0.25, 0.85]
+  #   orientation_rpy: [0.0, 90.0, 0.0]  # roll, pitch, yaw in degrees
+  #   scale: [0.3, 0.3, 0.3]
+  #   enabled: true
+  #   gravity_enabled: true
+
+  # - name: ball_valve
+  #   type: usd_asset
+  #   prim_path: /World/BallValve
+  #   usd_path: assets/ball_valve/valve.usd
+  #   position: [1.5, 0.0, 0.5]
+  #   scale: [0.01, 0.01, 0.01]
+  #   enabled: false
+  #   gravity_enabled: true
+
+  # - name: honeycomb
+  #   type: usd_asset
+  #   prim_path: /World/Honeycomb
+  #   usd_path: assets/honeycomb/Multilamps_Config.usdc
+  #   position: [0.0, 2.0, 2.0]
+  #   scale: [1.0, 1.0, 1.0]
+  #   enabled: false

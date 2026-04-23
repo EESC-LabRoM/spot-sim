@@ -1,0 +1,35 @@
+[project]
+name = "agn-grasp-sim"
+version = "0.1.0"
+description = "Simulation environment for viewpoint-agnostic grasping pipeline"
+requires-python = "==3.11.*"
+dependencies = [
+    "isaacsim[all,extscache]==5.1.0",
+    "isaaclab[all,isaacsim]==2.3.2.post1",
+    "torch==2.7.0",
+    "torchvision==0.22.0",
+    "numpy==1.26.0",
+    "scipy",
+    "open3d>=0.19.0",
+    "matplotlib",
+    "pytransform3d[all]>=3.14.4",
+    "yourdfpy>=0.0.60",
+    "ninja",
+    "loguru",
+    "relic",
+#    "nvidia-curobo",
+]
+
+[[tool.uv.index]]
+url = "https://pypi.nvidia.com/"
+
+[[tool.uv.index]]
+name = "pytorch"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch" }
+torchvision = { index = "pytorch" }
+relic = { path = "external/relic/source/relic", editable = true }
+#nvidia-curobo = { path = "external/curobo", editable = true }

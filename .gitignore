@@ -1,0 +1,74 @@
+# ------------------------------------------------------
+# Python and Virtual Environments
+# ------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+pyvenv.cfg
+
+.venv/
+venv/
+env/
+
+*.egg-info/
+.eggs/
+
+# ------------------------------------------------------
+# Build and Binaries
+# ------------------------------------------------------
+build/
+dist/
+lib/
+lib64/
+include/
+etc/
+bin/
+*.so
+*.o
+*.a
+
+# ------------------------------------------------------
+# IDEs and LLM Tools
+# ------------------------------------------------------
+.vscode/
+.idea/
+.pytest_cache/
+CLAUDE.md
+GEMINI.md
+.claude/
+.agents/
+
+# ------------------------------------------------------
+# Assets (generated / downloaded — not tracked)
+# ------------------------------------------------------
+assets/converted_usd/
+assets/downloaded_meshes/
+assets/spot_gripper_only/
+assets/datasets/
+scripts/spot_isaacsim/spot_config/cfg/materials/
+
+# ------------------------------------------------------
+# Data and Logs
+# ------------------------------------------------------
+captures/
+bags/
+*.log
+*.tmp
+*.bak
+*.swp
+.inference/
+.logs/
+
+# ------------------------------------------------------
+# Secrets and Config
+# ------------------------------------------------------
+.env
+secrets.json
+*.pem
+*.key
+
+# ------------------------------------------------------
+# Misc
+# ------------------------------------------------------
+/*.jpg
+/*.png

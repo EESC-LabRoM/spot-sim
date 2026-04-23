@@ -1,0 +1,12 @@
+[submodule "external/relic"]
+	path = external/relic
+	url = https://github.com/bdaiinstitute/relic
+[submodule "external/curobo"]
+	path = external/curobo
+	url = https://github.com/NVlabs/curobo.git
+[submodule "external/IsaacRobotics"]
+	path = external/IsaacRobotics
+	url = https://github.com/mschweig/IsaacRobotics.git
+[submodule "external/zed-isaac-sim"]
+	path = external/zed-isaac-sim
+	url = https://github.com/stereolabs/zed-isaac-sim.git
