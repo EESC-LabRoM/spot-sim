@@ -33,7 +33,7 @@
 
 robot:
   spawn_position: [-2.5, 0.0, 0.7]       # x, y, z in metres
-  initial_goal_pose: [-2.0, -1.0, 0.0]     # x, y, yaw (metres, metres, radians)
+  initial_goal_pose: [-2.0, 0.0, 0.0]     # x, y, yaw (metres, metres, radians)
 
 # ---- Stage / environment -----------------------------------------------
 # When stage.enabled is true the stage provides the floor and the ground

@@ -31,9 +31,9 @@ install +args:
 # Maintenance
 # ============================================================================
 
-# Syncs the simulation environment (useful after git pull or dependency changes)
+# Installs the full simulation environment (submodules, ZED, uv deps)
 install-sim:
-    uv sync
+    bash scripts/tools/install_modules.sh
 
 # Cleans python and simulator caches (if graphical issues occur)
 clean:
@@ -42,16 +42,6 @@ clean:
 # ============================================================================
 # Spot IsaacSim Environment
 # ============================================================================
-
-# Converts URDF to USD (one-time conversion)
-convert-spot-urdf:
-    just run scripts/tools/convert_urdf_to_usd.py --urdf assets/spot/spot_with_arm.urdf --output assets/spot/spot_with_arm.usd
-
-# Converts OBJ/GLB file(s) to USD with collision geometry for Isaac Sim
-# Usage: just convert-obj <input.obj|input.glb|dir/> [output.usd|dir/] [collision_type]
-# Collision types: convexDecomposition (default), convexHull, meshSimplification, none
-convert-obj input output="" collision="convexDecomposition":
-    just run scripts/tools/convert_obj_to_usd.py --input {{input}} {{ if output != "" { "--output " + output } else { "" } }} --collision {{collision}}
 
 # Runs the IsaacSim Spot spawner — publishes sensor topics (cameras, TF, joint states)
 run-spot-sim *args:

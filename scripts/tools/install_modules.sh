@@ -1,12 +1,8 @@
 #!/bin/bash
 # =============================================================================
-#   Isaac DL Grasp - Simulation Environment Setup
+#   Spot IsaacSim - Simulation Environment Setup
 # =============================================================================
 # Sets up the simulation Python environment using uv.
-#
-# ML inference nodes (segmentation, grasp) run inside the agn_grasp
-# Docker container. Install their dependencies with:
-#   just ros-install-env
 #
 # This script installs only what IsaacSim and IsaacLab need:
 #   - Isaac Sim 5.1 + Isaac Lab (via pip)
@@ -17,7 +13,6 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SIM_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-REPO_ROOT="$(cd "$SIM_ROOT/.." && pwd)"
 VENV="$SIM_ROOT/.venv/sim_env"
 export UV_PROJECT_ENVIRONMENT="$VENV"
 
@@ -38,8 +33,11 @@ sudo apt install -y cmake build-essential libboost-dev libboost-thread-dev libpc
 
 # 2. Submodules
 echo "[2/5] Initializing submodules..."
-cd "$REPO_ROOT"
-git submodule update --init --recursive -- simulation/external/relic simulation/external/curobo simulation/external/zed-isaac-sim
+cd "$SIM_ROOT"
+git submodule update --init --recursive -- external/relic
+git submodule update --init --recursive -- external/curobo
+git submodule update --init --recursive -- external/zed-isaac-sim
+git submodule update --init --recursive -- external/IsaacRobotics
 
 # 3. CUDA environment
 export CUDA_HOME=/usr/local/cuda-12.8
@@ -54,7 +52,7 @@ grep -q "CUDA_HOME" ~/.bashrc || {
 
 # 3. Build ZED Isaac Sim extension
 echo "[3/6] Building ZED Isaac Sim extension..."
-ZED_EXT_DIR="$REPO_ROOT/simulation/external/zed-isaac-sim"
+ZED_EXT_DIR="$SIM_ROOT/external/zed-isaac-sim"
 ZED_LIB_VERSION="4.2.0"
 ZED_LIB_ARCHIVE="$ZED_EXT_DIR/exts/sl.sensor.camera/bin/libsl_zed_linux_x86_64_${ZED_LIB_VERSION}.tar.gz"
 ZED_LIB_BUILD_PATH="$ZED_EXT_DIR/_build/linux-x86_64/release/exts/sl.sensor.camera/bin"
@@ -77,7 +75,7 @@ fi
 
 cd "$ZED_EXT_DIR"
 ./build.sh
-cd "$REPO_ROOT"
+cd "$SIM_ROOT"
 echo "   ZED extension built successfully."
 
 # 4. Build temp dir (prevents /tmp full errors during curobo compilation)
@@ -99,9 +97,6 @@ uv sync --inexact
 # 6. Write variables to activate file
 echo "# Isaac AGN Grasp Configs" >> $VENV/bin/activate
 echo "export UV_PROJECT_ENVIRONMENT=$VENV" >> $VENV/bin/activate
-echo "export ROS_DISTRO=jazzy" >> $VENV/bin/activate
-echo "export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp" >> $VENV/bin/activate
-echo "export LD_LIBRARY_PATH=\$LD_LIBRARY_PATH:$VENV/lib/python3.11/site-packages/isaacsim/exts/isaacsim.ros2.bridge/jazzy/lib" >> $VENV/bin/activate
 source $VENV/bin/activate
 
 echo "[6/6] Done."
@@ -109,12 +104,6 @@ echo "=========================================================="
 echo "   Simulation setup complete!"
 echo "=========================================================="
 echo ""
-echo "Next step — install ML node dependencies in the container:"
-echo "   just ros-install-env"
-echo ""
-echo "Then start the simulation:"
+echo "Start the simulation:"
 echo "   just run-spot-sim"
-echo ""
-echo "And start the ML nodes in a separate terminal:"
-echo "   just ros-dl-nodes"
 echo ""

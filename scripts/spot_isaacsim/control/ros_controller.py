@@ -28,7 +28,9 @@ from scripts.spot_isaacsim.spot_config.robot import SPOT_RESTING_ARM_JOINT_POSIT
 
 APPROACH_DISTANCE_M = 0.15
 RETRIEVE_LIFT_M     = 0.20
-APPROACH_THRESH     = 0.02
+APPROACH_THRESH     = 0.06
+GRASPING_THRESH     = 0.04
+RETRIEVING_THRESH   = 0.05
 HOME_JOINT_THRESH   = 0.05
 
 GRIPPER_OPEN   = -1.5
@@ -36,7 +38,7 @@ GRIPPER_CLOSED =  0.0
 
 ROBOT_BASE_TARGET_DISTANCE = 1.0
 
-_WAIT_DURATION_STEPS  = 50
+_WAIT_DURATION_STEPS  = 60
 _CLOSE_DURATION_STEPS = 50
 
 IDLE        = "IDLE"
@@ -295,7 +297,7 @@ class GraspExecutor:
 
         elif self._state == APPROACHING:
             self._arm.move_to(self._pre_grasp_pos, self._quat_wxyz)
-            if self._ee_error(self._pre_grasp_pos) < APPROACH_THRESH * 2:
+            if self._ee_error(self._pre_grasp_pos) < APPROACH_THRESH:
                 self._arm_at_pregrasp = True
                 if self._chain_grasp:
                     self._chain_grasp = False
@@ -306,7 +308,7 @@ class GraspExecutor:
 
         elif self._state == GRASPING:
             self._arm.move_to(self._grasp_pos, self._quat_wxyz)
-            if self._ee_error(self._grasp_pos) < APPROACH_THRESH:
+            if self._ee_error(self._grasp_pos) < GRASPING_THRESH:
                 self._transition(WAITING)
 
         elif self._state == WAITING:
@@ -328,7 +330,7 @@ class GraspExecutor:
 
         elif self._state == RETRIEVING:
             self._arm.move_to(self._lift_pos, self._quat_wxyz)
-            if self._ee_error(self._lift_pos) < APPROACH_THRESH:
+            if self._ee_error(self._lift_pos) < RETRIEVING_THRESH:
                 self._transition(STOWING)
 
         elif self._state == STOWING:

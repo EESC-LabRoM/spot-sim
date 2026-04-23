@@ -2,6 +2,16 @@
 
 > Isaac Sim environment for Boston Dynamics Spot with 6 RGB-D cameras and ROS2 bridge
 
+<table>
+  <tr>
+    <td style="padding:2px"><img src=".midia/output2.gif"/></td>
+    <td style="padding:2px"><img src=".midia/output3.gif"/></td>
+  </tr>
+  <tr>
+    <td colspan="2" style="padding:2px"><img src=".midia/output1.gif" width="100%"/></td>
+  </tr>
+</table>
+
 ## Requirements
 
 - Ubuntu 22.04.5 LTS
@@ -14,7 +24,7 @@
 
 ```bash
 git clone --recurse-submodules <repo-url>
-cd spot-isaacsim
+cd spot-sim
 ```
 
 ### 1. Install `just`
@@ -45,19 +55,6 @@ just
 ```bash
 just run-spot-sim          # with viewport
 just run-spot-sim-h        # headless mode
-```
-
-### Run an arbitrary script
-
-```bash
-just run scripts/spot_isaacsim/play.py --headless
-```
-
-### Asset conversion (one-time)
-
-```bash
-just convert-spot-urdf                              # URDF → USD
-just convert-obj assets/drill/drill.obj             # OBJ/GLB → USD
 ```
 
 ## Project Structure

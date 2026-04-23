@@ -103,6 +103,19 @@ def main():
     env['FASTDDS_BUILTIN_TRANSPORTS'] = 'LARGE_DATA'
     env['ROS_DOMAIN_ID'] = os.environ.get('ROS_DOMAIN_ID', '77')
 
+    # ROS2 runtime environment
+    os.environ.setdefault('ROS_DISTRO', 'jazzy')
+    os.environ.setdefault('RMW_IMPLEMENTATION', 'rmw_cyclonedds_cpp')
+    _venv_dir = Path(sys.executable).parent.parent
+    _ros_bridge_lib = (
+        _venv_dir / 'lib' / 'python3.11' / 'site-packages'
+        / 'isaacsim' / 'exts' / 'isaacsim.ros2.bridge'
+        / os.environ['ROS_DISTRO'] / 'lib'
+    )
+    os.environ['LD_LIBRARY_PATH'] = (
+        str(_ros_bridge_lib) + os.pathsep + os.environ.get('LD_LIBRARY_PATH', '')
+    )
+
     if exec_mode:
         print("[INFO] Detected --exec mode (Kit already running)")
         simulation_app = _KitAppAdapter()
