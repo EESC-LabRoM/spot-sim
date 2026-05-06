@@ -10,25 +10,8 @@ This works with both the relic URDF (no camera links) and the extended URDF.
 """
 
 import functools
-from dataclasses import dataclass
-from typing import Tuple
 import numpy as np
-
-
-@dataclass
-class CameraConfig:
-    """RGB camera configuration for Isaac Sim."""
-
-    name: str
-    prim_path: str  # Relative to robot prim, e.g., "arm_link_wr1/hand_cam"
-    resolution: Tuple[int, int]  # (width, height)
-    frequency: int = 10  # Hz
-    translation: Tuple[float, float, float] = (0.0, 0.0, 0.0)  # Local offset from parent
-    orientation_rpy: Tuple[float, float, float] = (0.0, -np.pi/2, 0.0)  # Roll, Pitch, Yaw in radians
-    focal_length: float = 18.0  # cm
-    horizontal_aperture: float = 20.955  # cm
-    clipping_range: Tuple[float, float] = (0.01, 9999999999999999999.0)  # near, far in meters
-
+from scripts.spot_isaacsim.scene import CameraConfig
 
 # =============================================================================
 # Camera mount joint chain (from simulation/assets/spot/spot_with_arm.urdf)

@@ -1,23 +1,22 @@
 """
-Keyboard controller backends for Spot Isaac Sim.
+Keyboard controller for Spot Isaac Sim — stdin backend only.
 
-Two implementations behind a common interface:
+Single implementation for both headed and headless modes:
 
-    CarbKeyboardController  — headed mode (omni.appwindow + carb.input subscription)
-    StdinKeyboardController — headless mode (stdin raw reader thread)
+    StdinKeyboardController  — raw stdin reader thread + optional carb NUMPAD_5 in GUI mode
 
-Both expose:
+Exposes:
     subscribe(callback: (key_name: str, pressed: bool) -> None)
+    update()   # must be called each physics step from the main thread
 
-Use the factory to get the right one automatically:
+Use the factory:
     from .keyboard_controller import create_keyboard_controller
-    kb = create_keyboard_controller()
+    kb = create_keyboard_controller(headless=False)
     kb.subscribe(locomotion.on_key_event)
     kb.subscribe(arm_controller.on_key_event)
 
-Key names emitted match the carb key name convention used by _KEY_POSE_MAP:
-    UP, DOWN, LEFT, RIGHT, N, M
-    NUMPAD_5, NUMPAD_0, NUMPAD_1
+In headless mode:  WASD + n/m for locomotion, 5/0/1/space for arm (terminal keys).
+In headed (GUI) mode: same terminal keys, plus physical NUMPAD_5 fires the arm toggle via carb.
 """
 
 import atexit
@@ -30,98 +29,58 @@ import tty
 from typing import Callable
 
 # ---------------------------------------------------------------------------
-# Locomotion key map — carb key name → [dx_body, dy_body, dyaw] per step
-# Shared between CarbKeyboardController and StdinKeyboardController so both
-# modes use identical logical key names.
+# Locomotion key map — logical key name → [dx_body, dy_body, dyaw] per step
 # ---------------------------------------------------------------------------
 _KB_POS_RATE = 0.04   # m per forward() call at 50 Hz
 _KB_YAW_RATE = 0.04   # rad per forward() call at 50 Hz
 
 KEY_POSE_MAP: dict[str, list] = {
-    "UP":       [+_KB_POS_RATE,  0.0,           0.0          ],
-    "NUMPAD_8": [+_KB_POS_RATE,  0.0,           0.0          ],
-    "DOWN":     [-_KB_POS_RATE,  0.0,           0.0          ],
-    "NUMPAD_2": [-_KB_POS_RATE,  0.0,           0.0          ],
-    "LEFT":     [ 0.0,          +_KB_POS_RATE,   0.0          ],
-    "NUMPAD_4": [ 0.0,          +_KB_POS_RATE,   0.0          ],
-    "RIGHT":    [ 0.0,          -_KB_POS_RATE,   0.0          ],
-    "NUMPAD_6": [ 0.0,          -_KB_POS_RATE,   0.0          ],
-    "N":        [ 0.0,           0.0,           +_KB_YAW_RATE ],
-    "NUMPAD_7": [ 0.0,           0.0,           +_KB_YAW_RATE ],
-    "M":        [ 0.0,           0.0,           -_KB_YAW_RATE ],
-    "NUMPAD_9": [ 0.0,           0.0,           -_KB_YAW_RATE ],
+    "UP":    [+_KB_POS_RATE,  0.0,           0.0          ],
+    "DOWN":  [-_KB_POS_RATE,  0.0,           0.0          ],
+    "LEFT":  [ 0.0,          +_KB_POS_RATE,  0.0          ],
+    "RIGHT": [ 0.0,          -_KB_POS_RATE,  0.0          ],
+    "Q":     [ 0.0,           0.0,          +_KB_YAW_RATE ],
+    "E":     [ 0.0,           0.0,          -_KB_YAW_RATE ],
 }
 
-# Arm keys — same carb key names used by both backends
-ARM_KEY_TOGGLE  = "NUMPAD_5"
-ARM_KEY_RESTING = "NUMPAD_0"
+# Arm key logical names
+ARM_KEY_TOGGLE   = "NUMPAD_5"
+ARM_KEY_RESTING  = "NUMPAD_0"
 ARM_KEY_STANDING = "NUMPAD_1"
+ARM_KEY_GRIPPER  = "SPACE"
 
-# ---------------------------------------------------------------------------
-# Stdin key map — terminal chars/sequences → carb key names
-# Maps WASD + numpad-style chars to the same logical names used by carb,
-# so locomotion_controller and arm_controller need no headless-specific code.
-# ---------------------------------------------------------------------------
+# Terminal char/sequence → logical key name
 _SEQ_MAP: dict[str, str] = {
-    # Locomotion
-    "w": "UP",       "W": "UP",
-    "s": "DOWN",     "S": "DOWN",
-    "a": "LEFT",     "A": "LEFT",
-    "d": "RIGHT",    "D": "RIGHT",
-    "n": "N",        "N": "N",
-    "m": "M",        "M": "M",
-    # Arm
+    "w": "UP",    "W": "UP",
+    "s": "DOWN",  "S": "DOWN",
+    "a": "LEFT",  "A": "LEFT",
+    "d": "RIGHT", "D": "RIGHT",
+    "q": "Q",     "Q": "Q",
+    "e": "E",     "E": "E",
     "5": ARM_KEY_TOGGLE,
     "0": ARM_KEY_RESTING,
     "1": ARM_KEY_STANDING,
+    " ": ARM_KEY_GRIPPER,
 }
 
-# ---------------------------------------------------------------------------
-# Carb (headed) backend
-# ---------------------------------------------------------------------------
-
-class CarbKeyboardController:
-    """Keyboard controller for headed Isaac Sim — uses omni.appwindow + carb.input."""
-
-    def __init__(self) -> None:
-        import carb
-        import omni.appwindow
-        self._callbacks: list[Callable[[str, bool], None]] = []
-        self._carb = carb
-        appwindow = omni.appwindow.get_default_app_window()
-        iface = carb.input.acquire_input_interface()
-        keyboard = appwindow.get_keyboard()
-        self._sub = iface.subscribe_to_keyboard_events(keyboard, self._on_event)
-        print("[KB] Carb keyboard active (headed mode)")
-        print("[KB]   Locomotion : UP/DOWN (forward/back)  LEFT/RIGHT (strafe)  N/M (yaw)")
-        print("[KB]   Arm        : Numpad5 (toggle tracking)  Numpad0 (resting)  Numpad1 (standing)")
-
-    def subscribe(self, callback: Callable[[str, bool], None]) -> None:
-        self._callbacks.append(callback)
-
-    def _on_event(self, event) -> bool:
-        key_name = event.input.name if hasattr(event.input, 'name') else str(event.input)
-        pressed  = event.type == self._carb.input.KeyboardEventType.KEY_PRESS
-        released = event.type == self._carb.input.KeyboardEventType.KEY_RELEASE
-        if pressed or released:
-            for cb in self._callbacks:
-                cb(key_name, pressed)
-        return True
-
 
 # ---------------------------------------------------------------------------
-# Stdin (headless) backend
+# Stdin keyboard controller
 # ---------------------------------------------------------------------------
 
 class StdinKeyboardController:
-    """Keyboard controller for headless Isaac Sim — reads raw keypresses from stdin.
+    """Keyboard controller — reads raw keypresses from stdin.
+
+    Works in both headless and headed (GUI) modes. In headed mode, also
+    subscribes a minimal carb listener so the physical NUMPAD_5 key fires
+    the arm toggle without needing terminal focus.
 
     KEY_RELEASE is simulated: a per-key timer fires 150 ms after the last
     keypress. Terminal auto-repeat fires every ~50 ms, so any held key keeps
     resetting the timer; the release fires only once the key is actually lifted.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, headed: bool = False) -> None:
         self._callbacks: list[Callable[[str, bool], None]] = []
         self._timers: dict[str, threading.Timer] = {}
         self._timers_lock = threading.Lock()
@@ -142,9 +101,12 @@ class StdinKeyboardController:
         t = threading.Thread(target=self._reader_loop, daemon=True, name="StdinKeyboard")
         t.start()
 
-        print("[KB] Stdin keyboard active (headless mode)")
-        print("[KB]   Locomotion : UP/DOWN (forward/back)  LEFT/RIGHT (strafe)  N/M (yaw)")
-        print("[KB]   Arm        : 5 (toggle tracking)     0 (resting)          1 (standing)")
+        print("[KB] Stdin keyboard active")
+        print("[KB]   Locomotion : W/S (forward/back)  A/D (strafe)  N/M (yaw)")
+        print("[KB]   Arm        : 5 (toggle tracking)  0 (resting)  1 (standing)  Space (gripper)")
+
+        if headed:
+            self._attach_carb_numpad5()
 
     def subscribe(self, callback: Callable[[str, bool], None]) -> None:
         self._callbacks.append(callback)
@@ -170,6 +132,26 @@ class StdinKeyboardController:
                     cb(key_name, pressed)
                 except Exception as exc:
                     print(f"[KB] Callback error for '{key_name}' pressed={pressed}: {exc}")
+
+    # ------------------------------------------------------------------
+    # Carb NUMPAD_5 shim — headed (GUI) mode only
+    # ------------------------------------------------------------------
+
+    def _attach_carb_numpad5(self) -> None:
+        """Subscribe a minimal carb listener that forwards only NUMPAD_5."""
+        import carb
+        import omni.appwindow
+        iface = carb.input.acquire_input_interface()
+        keyboard = omni.appwindow.get_default_app_window().get_keyboard()
+
+        def _on_event(event) -> bool:
+            key_name = event.input.name if hasattr(event.input, 'name') else str(event.input)
+            if key_name == ARM_KEY_TOGGLE and event.type == carb.input.KeyboardEventType.KEY_PRESS:
+                self._enqueue_press(ARM_KEY_TOGGLE)
+            return True
+
+        self._carb_sub = iface.subscribe_to_keyboard_events(keyboard, _on_event)
+        print("[KB] Carb NUMPAD_5 listener active (GUI arm-toggle)")
 
     # ------------------------------------------------------------------
     # Internal — called from background threads, only touch _event_queue
@@ -198,8 +180,8 @@ class StdinKeyboardController:
                 # TCSANOW: restore immediately — TCSADRAIN can hang if the
                 # process is crashing and stdout is no longer draining.
                 termios.tcsetattr(self._fd, termios.TCSANOW, self._old_settings)
-            except Exception:
-                pass
+            except termios.error as exc:
+                print(f"[KB] Failed to restore terminal settings: {exc}")
 
     def _reader_loop(self) -> None:
         # Raw mode is already set by __init__ — do not call tty.setraw here.
@@ -250,14 +232,11 @@ class StdinKeyboardController:
 # Factory
 # ---------------------------------------------------------------------------
 
-def create_keyboard_controller(headless: bool = False) -> CarbKeyboardController | StdinKeyboardController:
-    """Return the appropriate keyboard controller.
+def create_keyboard_controller(headless: bool = False) -> StdinKeyboardController:
+    """Return a StdinKeyboardController.
 
     Args:
         headless: Pass True when SimulationApp was launched with headless=True.
-                  carb creates a keyboard object even in headless mode, so the
-                  get_keyboard() check is unreliable — the caller must be explicit.
+                  In headed mode, also attaches a carb subscriber for NUMPAD_5.
     """
-    if headless:
-        return StdinKeyboardController()
-    return CarbKeyboardController()
+    return StdinKeyboardController(headed=not headless)

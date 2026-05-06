@@ -53,7 +53,7 @@ class ROSBridgeBuilder:
                 "but zed_config is None. Pass a ZedConfig instance."
             )
         self.config = BridgeConfig(
-            cameras=self._make_camera_topics(),
+            camera_specs=self._make_camera_topics(),
             enable_joint_state=enable_joint_state,
             enable_tf=enable_tf,
             graph_path=graph_path,
@@ -110,7 +110,7 @@ class ROSBridgeBuilder:
                 all_connect.extend(connect)
                 all_set_values.extend(values)
 
-            for cam_spec in self.config.cameras:
+            for cam_spec in (self.config.camera_specs or []):
                 camera_key = cam_spec.get("camera_key", cam_spec["name"])
                 if camera_key not in self.camera_paths:
                     print(f"[WARN] Camera '{cam_spec['name']}' not found, skipping")

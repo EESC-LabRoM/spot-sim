@@ -15,26 +15,23 @@ Modes (toggle with Numpad 5):
 """
 
 import numpy as np
-import omni
-import omni.usd
-from math import atan2
-from pxr import UsdGeom
-from isaacsim.robot_motion.motion_generation import ArticulationKinematicsSolver, LulaKinematicsSolver
-from isaacsim.core.utils.types import ArticulationAction
-from scripts.spot_isaacsim.spot_config.robot import (
+from scripts.spot_isaacsim.spot_config.cfg.constants import (
     SPOT_RESTING_ARM_JOINT_POSITION,
     SPOT_STANDING_ARM_JOINT_POSITION,
+    SPOT_GRIPPER_OPEN,
+    SPOT_GRIPPER_CLOSED,
+    EE_TARGET_OFFSET,
 )
-from scripts.spot_isaacsim.control.keyboard_controller import (
+from scripts.spot_isaacsim.control.interfaces.keyboard_controller import (
     ARM_KEY_TOGGLE,
     ARM_KEY_RESTING,
     ARM_KEY_STANDING,
+    ARM_KEY_GRIPPER,
 )
 
 _TRACKING_CUBE_PATH  = "/World/ArmTrackingTarget"
 _TRACKING_CUBE_SIZE  = 0.05                        # m — edge length
 _TRACKING_CUBE_COLOR = np.array([0.1, 0.9, 0.4])  # bright green
-_EE_TARGET_OFFSET = np.array([-0.15, 0.0, -0.02], dtype=np.float64)
 
 
 class SpotArmController:
@@ -46,6 +43,7 @@ class SpotArmController:
             robot: SingleArticulation object for the Spot robot.
             robot_config: RobotConfig instance (provides URDF and Lula config paths).
         """
+        from isaacsim.robot_motion.motion_generation import ArticulationKinematicsSolver, LulaKinematicsSolver
         self._robot = robot
         self._lula = LulaKinematicsSolver(
             robot_description_path=robot_config.lula_config_path,
@@ -55,6 +53,7 @@ class SpotArmController:
 
         self._mode = "idle"         # "idle" | "tracking"
         self._tracking_cube = None  # FixedCuboid — created in initialize()
+        self._gripper_open  = True  # tracks current gripper state for toggle
 
 
     # ------------------------------------------------------------------
@@ -134,9 +133,9 @@ class SpotArmController:
         return self._art_ik.compute_end_effector_pose()
 
     def _apply_ee_offset(self, cube_world_pos: np.ndarray) -> np.ndarray:
-        """Rotate _EE_TARGET_OFFSET from EE local frame to world frame and add to cube pos."""
+        """Rotate EE_TARGET_OFFSET from EE local frame to world frame and add to cube pos."""
         _, R = self.get_ee_pose()   # R is rotation_matrix [3,3], already world-frame
-        return cube_world_pos + R @ _EE_TARGET_OFFSET
+        return cube_world_pos + R @ EE_TARGET_OFFSET
 
     @property
     def is_tracking(self) -> bool:
@@ -152,7 +151,7 @@ class SpotArmController:
             # Place cube so that (cube + offset) == current EE — arm won't jerk on activation
             self._update_lula_base()
             ee_pos, R = self.get_ee_pose()
-            self._tracking_cube.set_world_pose(position=ee_pos - R @ _EE_TARGET_OFFSET)
+            self._tracking_cube.set_world_pose(position=ee_pos - R @ EE_TARGET_OFFSET)
             self._set_cube_visible(True)
             self._mode = "tracking"
             print("[ARM] Mode → TRACKING  (drag green cube in viewport to guide arm)")
@@ -163,6 +162,7 @@ class SpotArmController:
 
     def _apply_arm_pose(self, pose_dict: dict) -> None:
         """Apply a named arm pose by direct joint position target."""
+        from isaacsim.core.utils.types import ArticulationAction
         joint_names = list(self._robot.dof_names)
         indices, positions = [], []
         for name, pos in pose_dict.items():
@@ -175,7 +175,39 @@ class SpotArmController:
                 joint_indices=np.array(indices, dtype=np.int32),
             ))
 
+    def set_resting(self) -> None:
+        """Switch to IDLE mode and apply the resting arm pose."""
+        self._apply_arm_pose(SPOT_RESTING_ARM_JOINT_POSITION)
+        print("[ARM] Set to RESTING pose")
+
+    def set_standing(self) -> None:
+        """Switch to IDLE mode and apply the standing arm pose."""
+        self._apply_arm_pose(SPOT_STANDING_ARM_JOINT_POSITION)
+        print("[ARM] Set to STANDING pose")
+
+    def set_gripper_open(self) -> None:
+        """Open the gripper."""
+        self._apply_arm_pose(SPOT_GRIPPER_OPEN)
+        self._gripper_open = True
+        print("[ARM] Gripper OPEN")
+
+    def set_gripper_closed(self) -> None:
+        """Close the gripper."""
+        self._apply_arm_pose(SPOT_GRIPPER_CLOSED)
+        self._gripper_open = False
+        print("[ARM] Gripper CLOSED")
+
+    def toggle_gripper(self) -> None:
+        """Toggle gripper between open and closed."""
+        if self._gripper_open:
+            self.set_gripper_closed()
+        else:
+            self.set_gripper_open()
+
     def _set_cube_visible(self, visible: bool) -> None:
+        import omni
+        import omni.usd
+        from pxr import UsdGeom
         stage = omni.usd.get_context().get_stage()
         prim = stage.GetPrimAtPath(_TRACKING_CUBE_PATH)
         if prim and prim.IsValid():
@@ -193,8 +225,8 @@ class SpotArmController:
         if key_name == ARM_KEY_TOGGLE:
             self._toggle_mode()
         elif key_name == ARM_KEY_RESTING:
-            self._apply_arm_pose(SPOT_RESTING_ARM_JOINT_POSITION)
-            print("[ARM] Pose → RESTING")
+            self.set_resting()
         elif key_name == ARM_KEY_STANDING:
-            self._apply_arm_pose(SPOT_STANDING_ARM_JOINT_POSITION)
-            print("[ARM] Pose → STANDING")
+            self.set_standing()
+        elif key_name == ARM_KEY_GRIPPER:
+            self.toggle_gripper()

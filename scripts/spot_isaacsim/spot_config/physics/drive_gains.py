@@ -107,7 +107,7 @@ def apply_drive_gains(robot_prim_path: str) -> None:
           f"{arm_applied}/{len(ARM_DRIVE_PARAMS)} arm joints")
 
 
-def apply_leg_drive_multiplier(robot_prim_path: str, multiplier: float) -> None:
+def apply_leg_drive_multiplier(robot_prim_path: str, multiplier: float, silent: bool = False) -> None:
     """Scale LEG drive stiffness and damping by multiplier relative to LEG_DRIVE_PARAMS.
 
     Call at lock/unlock transitions — does NOT touch arm joints.
@@ -115,6 +115,7 @@ def apply_leg_drive_multiplier(robot_prim_path: str, multiplier: float) -> None:
     Args:
         robot_prim_path: USD root prim of the robot (e.g. '/World/Robot').
         multiplier: Scale factor applied to both stiffness and damping (e.g. 10.0 to lock).
+        silent: If True, suppress the status print (use during per-frame ramp ticks).
     """
     import omni.usd
     from pxr import Usd, UsdPhysics
@@ -142,5 +143,6 @@ def apply_leg_drive_multiplier(robot_prim_path: str, multiplier: float) -> None:
         drive.GetDampingAttr().Set(float(damping * multiplier * rad_to_usd))
         applied += 1
 
-    print(f"[Physics] Leg drive gains \u00d7{multiplier:.1f}: {applied}/{len(LEG_DRIVE_PARAMS)} joints")
+    if not silent:
+        print(f"[Physics] Leg drive gains \u00d7{multiplier:.1f}: {applied}/{len(LEG_DRIVE_PARAMS)} joints")
 

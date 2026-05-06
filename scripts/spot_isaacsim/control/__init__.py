@@ -1,8 +1,10 @@
-from .arm_controller import SpotArmController
-from .ros_controller import GraspExecutor, NavigationExecutor
-from .keyboard_controller import create_keyboard_controller
-from .locomotion_collision_avoidance import LocomotionCollisionAvoidance
-from .locomotion_controller import SpotLocomotionController
+from .components.arm_controller import SpotArmController
+from .interfaces.ros_controller import GraspExecutor, NavigationExecutor
+from .interfaces.keyboard_controller import create_keyboard_controller
+from .components.locomotion_collision_avoidance import LocomotionCollisionAvoidance
+from .components.locomotion_controller import SpotLocomotionController
+from .components.locomotion_pose_tracker import LocomotionPoseTracker
+from .spot_controller import SpotController
 
 __all__ = [
     "SpotArmController",
@@ -11,5 +13,7 @@ __all__ = [
     "create_keyboard_controller",
     "LocomotionCollisionAvoidance",
     "SpotLocomotionController",
+    "LocomotionPoseTracker",
+    "SpotController",
 ]
 

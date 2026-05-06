@@ -6,7 +6,6 @@ Camera configuration package for spot_isaacsim.
 """
 
 from .rgbd_cameras import (
-    CameraConfig,
     hand_camera_config,
     frontleft_camera_config,
     frontright_camera_config,
@@ -20,7 +19,6 @@ from .mounted_zed import ZedConfig, add_zed_to_stage
 
 __all__ = [
     # RGBD cameras
-    "CameraConfig",
     "hand_camera_config",
     "frontleft_camera_config",
     "frontright_camera_config",

@@ -86,15 +86,20 @@ def _build_stage(world, cfg: dict, objects: dict) -> bool:
     stage_cfg = cfg.get("stage", {})
     if not stage_cfg.get("enabled", False):
         return False
-    from .loaders import load_warehouse_stage
-    objects["stage"] = load_warehouse_stage(
-        world,
-        prim_path=stage_cfg.get("prim_path", "/World/Warehouse"),
-        stage_type=stage_cfg.get("type"),
-        usd_path=stage_cfg.get("usd_path"),
-        position=tuple(stage_cfg.get("position", [0.0, 0.0, 0.0])),
-        scale=tuple(stage_cfg.get("scale", [1.0, 1.0, 1.0])),
-    )
+    usd_path = stage_cfg.get("usd_path")
+    stage_type = stage_cfg.get("type")
+    prim_path = stage_cfg.get("prim_path", "/World/Warehouse")
+    position = tuple(stage_cfg.get("position", [0.0, 0.0, 0.0]))
+    scale = tuple(stage_cfg.get("scale", [1.0, 1.0, 1.0]))
+    if usd_path and not stage_type:
+        from .loaders import load_scene_usd
+        objects["stage"] = load_scene_usd(world, prim_path, usd_path, position=position, scale=scale)
+    else:
+        from .loaders import load_warehouse_stage
+        objects["stage"] = load_warehouse_stage(
+            world, prim_path=prim_path, stage_type=stage_type,
+            usd_path=usd_path, position=position, scale=scale,
+        )
     return True
 
 
@@ -168,8 +173,5 @@ def _build_usd_asset(world, asset: dict):
         position=tuple(asset.get("position", [0.0, 0.0, 0.0])),
         orientation_rpy=tuple(asset.get("orientation_rpy", [0.0, 0.0, 0.0])),
         scale=tuple(asset.get("scale", [1.0, 1.0, 1.0])),
-        gravity_enabled=asset.get("gravity_enabled", True),
-        mass=asset.get("mass"),
-        static_friction=asset.get("static_friction"),
-        dynamic_friction=asset.get("dynamic_friction"),
+        physics=asset.get("physics"),
     )

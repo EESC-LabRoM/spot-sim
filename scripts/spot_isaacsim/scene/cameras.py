@@ -2,8 +2,23 @@
 Camera factory and initialization for Spot robot in Isaac Sim.
 """
 
-from typing import Dict, List
+from typing import Dict, List, Tuple
 import numpy as np
+from dataclasses import dataclass
+
+@dataclass
+class CameraConfig:
+    """RGB camera configuration for Isaac Sim."""
+
+    name: str
+    prim_path: str  # Relative to robot prim, e.g., "arm_link_wr1/hand_cam"
+    resolution: Tuple[int, int]  # (width, height)
+    frequency: int = 10  # Hz
+    translation: Tuple[float, float, float] = (0.0, 0.0, 0.0)  # Local offset from parent
+    orientation_rpy: Tuple[float, float, float] = (0.0, -np.pi/2, 0.0)  # Roll, Pitch, Yaw in radians
+    focal_length: float = 18.0  # cm
+    horizontal_aperture: float = 20.955  # cm
+    clipping_range: Tuple[float, float] | None = (0.01, 100.00)  # near, far in meters
 
 
 def create_all_cameras(
@@ -40,7 +55,8 @@ def create_all_cameras(
         )
         camera.set_focal_length(config.focal_length)
         camera.set_horizontal_aperture(config.horizontal_aperture)
-        camera.set_clipping_range(*config.clipping_range)
+        if config.clipping_range is not None:
+            camera.set_clipping_range(*config.clipping_range)
         cameras[config.name] = camera
     return cameras
 

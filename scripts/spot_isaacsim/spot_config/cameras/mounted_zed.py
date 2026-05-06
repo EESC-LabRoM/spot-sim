@@ -20,13 +20,15 @@ class ZedConfig:
     """Configuration for a ZED X camera mounted on the robot."""
 
     reference_frame: str = "/World/Robot/body"  # USD prim path to parent to
-    translation: Tuple[float, float, float] = (0.38, 0.0, 0.09)   # Local XYZ offset (m)
+    translation: Tuple[float, float, float] = (0.38, 0.0, 0.09)  # Local XYZ offset (m)
     rotation_rpy: Tuple[float, float, float] = (0.0, 0.0, 0.0)  # Roll, pitch, yaw (rad)
     usd_url: str = field(default=DEFAULT_ZED_USD_URL)
     prim_name: str = "ZED_X"  # Prim name under reference_frame
-    streaming_port: int = 30000       # Port for ZED ROS2 Wrapper (sim_port=)
-    transport_mode: str = "IPC"       # "IPC" (same machine), "NETWORK" (remote), "BOTH"
-    ros_frame_id: str = "zed_camera_link"  # ROS TF child frame name expected by the wrapper
+    streaming_port: int = 30000  # Port for ZED ROS2 Wrapper (sim_port=)
+    transport_mode: str = "NETWORK"  # "IPC" (same machine), "NETWORK" (remote), "BOTH"
+    ros_frame_id: str = (
+        "zed_camera_link"  # ROS TF child frame name expected by the wrapper
+    )
 
 
 def add_zed_to_stage(config: ZedConfig) -> str:
@@ -47,7 +49,9 @@ def add_zed_to_stage(config: ZedConfig) -> str:
     stage = omni.usd.get_context().get_stage()
     prim = stage.GetPrimAtPath(prim_path)
     if not prim.IsValid():
-        raise RuntimeError(f"[ZED] Prim not found after add_reference_to_stage: {prim_path}")
+        raise RuntimeError(
+            f"[ZED] Prim not found after add_reference_to_stage: {prim_path}"
+        )
 
     # The ZED USD has physics APIs that conflict with the parent body link.
     # Disabling rigidBodyEnabled is not enough — PhysX still validates the xform

@@ -12,63 +12,16 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, Optional, Tuple
 import numpy as np
-import torch
+
+from scripts.spot_isaacsim.spot_config.cfg.constants import (
+    SPOT_STANDING_ARM_JOINT_POSITION,
+    SPOT_RESTING_ARM_JOINT_POSITION,
+    SPOT_STANDING_JOINT_POSITIONS,
+    SPOT_DEFAULT_JOINT_POSITIONS,
+)
 
 # Project root for resolving relative paths (3 levels up from spot_config/)
 PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
-
-# Projected Arm Position
-initial_curvature = {
-    "shoulder": torch.pi / 180.0 * 110.0,  # Initial shoulder curvature
-    "elbow": torch.pi / 180.0 * 45.0,  # Initial elbow curvature
-}
-initial_curvature["wrist"] = 180 - (
-    (180 - initial_curvature["shoulder"]) + initial_curvature["elbow"]
-)  # Initial wrist curvature
-
-# Values for the 7 arm joints
-SPOT_STANDING_ARM_JOINT_POSITION = {
-    "arm_sh0": 0.0,
-    "arm_sh1": -3.141 + initial_curvature["shoulder"],  # Shoulder 0/1
-    "arm_el0": 3.141 - initial_curvature["elbow"],
-    "arm_el1": 0.0,  # Elbow 0/1
-    "arm_wr0": 0.0 - initial_curvature["wrist"],
-    "arm_wr1": 0.0,  # Wrist 0/1
-    "arm_f1x": -1.0,  # Gripper
-}
-
-SPOT_RESTING_ARM_JOINT_POSITION = {
-    "arm_sh0": 0.0,
-    "arm_sh1": -3.141,  # Shoulder 0/1
-    "arm_el0": 3.141,
-    "arm_el1": 0.0,  # Elbow 0/1
-    "arm_wr0": 0.0,
-    "arm_wr1": 0.0,  # Wrist 0/1
-    "arm_f1x": -1.0,  # Gripper
-}
-
-# Default standing pose
-# Standing spot configuration used without locomotion
-SPOT_STANDING_JOINT_POSITIONS: Dict[str, float] = {
-    # Front left leg
-    "fl_hx":  0.1,
-    "fl_hy":  0.9,
-    "fl_kn": -1.503,
-    # Front right leg
-    "fr_hx": -0.1,
-    "fr_hy":  0.9,
-    "fr_kn": -1.503,
-    # Hind left leg
-    "hl_hx":  0.1,
-    "hl_hy":  1.1,
-    "hl_kn": -1.503,
-    # Hind right leg
-    "hr_hx": -0.1,
-    "hr_hy":  1.1,
-    "hr_kn": -1.503,
-}
-
-SPOT_DEFAULT_JOINT_POSITIONS = SPOT_STANDING_JOINT_POSITIONS | SPOT_RESTING_ARM_JOINT_POSITION
 
 @dataclass
 class RobotConfig:
@@ -81,6 +34,17 @@ class RobotConfig:
     orientation: Tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0)  # wxyz
     initial_goal_pose: Tuple[float, float, float] = (0.0, 0.0, 0.0)  # x, y, yaw (metres, metres, radians)
     initial_joint_positions: Dict[str, float] = field(default_factory=lambda: dict(SPOT_DEFAULT_JOINT_POSITIONS))
+
+    # Subsystem feature flags
+    enable_locomotion: bool = True
+    enable_arm_ik: bool = True
+    enable_ros_bridge: bool = True
+    enable_ros_controllers: bool = True
+    enable_keyboard_controller: bool = True
+    enable_collision_avoidance: bool = True
+
+    # Camera creation filter — None means create all cameras; list restricts to named cameras
+    cameras: list = field(default_factory=lambda: ["hand", "front_left", "front_right", "rear_left", "rear", "left", "right"])
 
     def __post_init__(self) -> None:
         urdf = Path(self.urdf_path)
@@ -97,6 +61,9 @@ class RobotConfig:
             raise FileNotFoundError(f"Lula config not found: {lula}")
         self.lula_config_path = str(lula)
 
+_BASE_REACH_M = 1.0  # max XY distance at which the arm can reach a target
+
+
 class SpotRobot:
     """
     Encapsulates all robot subsystem setup: cameras, physics, ROS2 bridge,
@@ -107,70 +74,72 @@ class SpotRobot:
     imports and to respect the SimulationApp initialization requirement.
     """
 
-    def __init__(self, robot, world, config, device: str = "cpu",
-                 enabled_cameras: set = None, gate_step: int = 1,
-                 zed_config="default", headless: bool = False):
+    def __init__(self, robot, world,
+                 scene_cfg: "SceneConfig",
+                 bridge_cfg: "BridgeConfig | None" = None,
+                 zed_cfg: "ZedConfig | None" = None,
+                 device: str = "cpu",
+                 headless: bool = False):
         # Deferred imports — must happen after SimulationApp + extensions are ready,
         # and keeps this module free of circular dependencies with control/.
         from scripts.spot_isaacsim.spot_config import all_rgb_camera_configs
         from scripts.spot_isaacsim.scene import create_all_cameras, initialize_cameras
         from scripts.spot_isaacsim.spot_config.physics import apply_all_physics
         from scripts.spot_isaacsim.omnigraph import ROSBridgeBuilder
-        from scripts.spot_isaacsim.control import (
-            SpotLocomotionController,
-            NavigationExecutor,
-            SpotArmController,
-            GraspExecutor,
-        )
+        from scripts.spot_isaacsim.control.spot_controller import SpotController
 
         self._world = world
-        self._config = config
+        self._scene_cfg = scene_cfg
         self._apply_all_physics = apply_all_physics
-        self._step_count = 0
-        self._loco_counter = 0
+        self._robot = robot
 
         # Cameras (created before world.reset())
         print("[INFO] Creating RGB cameras (with depth enabled)...")
         active_configs = [c for c in all_rgb_camera_configs
-                          if enabled_cameras is None or c.name in enabled_cameras]
-        self.cameras = create_all_cameras(config.robot.prim_path, active_configs)
+                          if scene_cfg.robot.cameras is None or c.name in scene_cfg.robot.cameras]
+        self.cameras = create_all_cameras(scene_cfg.robot.prim_path, active_configs)
         print(f"[INFO] Created {len(self.cameras)} RGB camera(s): {list(self.cameras)}")
 
         # ZED camera USD asset (mounted before world.reset())
         self.zed_prim_path = None
-        if zed_config is not None:
-            from scripts.spot_isaacsim.spot_config.cameras import ZedConfig, add_zed_to_stage
-            if zed_config == "default":
-                zed_config = ZedConfig()
+        if zed_cfg is not None:
+            from scripts.spot_isaacsim.spot_config.cameras import add_zed_to_stage
             print("[INFO] Adding ZED X camera to stage...")
-            self.zed_prim_path = add_zed_to_stage(zed_config)
+            self.zed_prim_path = add_zed_to_stage(zed_cfg)
             print(f"[INFO] ZED X mounted at: {self.zed_prim_path}")
 
         # World reset + physics + camera init
         world.reset()
         print("[INFO] World reset complete")
-        apply_all_physics(config.robot.prim_path)
+        apply_all_physics(scene_cfg.robot.prim_path)
         initialize_cameras(list(self.cameras.values()), enable_depth=True)
 
         # ROS2 bridge
-        print("[INFO] Creating ROS2 bridge...")
-        self.ros2_bridge = ROSBridgeBuilder(
-            robot=robot,
-            cameras=self.cameras,
-            camera_step=gate_step,
-            zed_prim_path=self.zed_prim_path,
-            zed_config=zed_config if self.zed_prim_path else None,
-        )
-        if self.ros2_bridge.success:
-            print("[INFO] ROS2 bridge created successfully")
+        if scene_cfg.robot.enable_ros_bridge:
+            if bridge_cfg is None:
+                raise ValueError("enable_ros_bridge is True but no BridgeConfig was provided")
+            print("[INFO] Creating ROS2 bridge...")
+            pub_cameras = {k: v for k, v in self.cameras.items() if k in bridge_cfg.publishing_cameras}
+            self.ros2_bridge = ROSBridgeBuilder(
+                robot=robot,
+                cameras=pub_cameras,
+                camera_step=bridge_cfg.camera_step,
+                zed_prim_path=self.zed_prim_path,
+                zed_config=zed_cfg if self.zed_prim_path else None,
+            )
+            if self.ros2_bridge.success:
+                print("[INFO] ROS2 bridge created successfully")
+            else:
+                print(f"[ERROR] ROS2 bridge failed: {self.ros2_bridge.error}")
         else:
-            print(f"[ERROR] ROS2 bridge failed: {self.ros2_bridge.error}")
+            self.ros2_bridge = None
+            print("[INFO] ROS2 bridge disabled")
 
         # Initial joint positions
         joint_names = list(robot.dof_names)
         positions = robot.get_joint_positions()
         applied_count = 0
-        for name, pos in config.robot.initial_joint_positions.items():
+        for name, pos in scene_cfg.robot.initial_joint_positions.items():
             if name in joint_names:
                 positions[joint_names.index(name)] = pos
                 applied_count += 1
@@ -179,56 +148,47 @@ class SpotRobot:
         robot.set_joint_positions(positions)
         print(f"[INFO] Applied initial positions to {applied_count}/{robot.num_dof} joints")
 
-        # Locomotion + navigation
-        self.locomotion = SpotLocomotionController(
-            robot,
-            physics_dt=config.physics_dt,
-            device=device,
-        )
-        self.locomotion.initialize()
-        x, y, yaw = config.robot.initial_goal_pose
-        self.locomotion.set_target_pose(x, y, yaw)
-        self.locomotion.set_cameras(self.cameras)
-        self.navigation_executor = NavigationExecutor(self.locomotion, physics_dt=config.physics_dt)
+        # All loco-manip controllers (locomotion, arm IK, ROS executors, state machine)
+        self.controller = SpotController(robot, world, scene_cfg, cameras=self.cameras, device=device)
 
-        # Arm IK + grasp executor
-        self.arm_controller = SpotArmController(robot, config.robot)
-        self.arm_controller.initialize(world)
-        self.executor = GraspExecutor(self.arm_controller, robot)
-        self.executor.enable_ros2(self.navigation_executor)
-        self.navigation_executor.enable_ros2()
-
-        # Keyboard controller — auto-selects carb (headed) or stdin (headless)
-        from scripts.spot_isaacsim.control.keyboard_controller import create_keyboard_controller
-        self.kb = create_keyboard_controller(headless=headless)
-        self.kb.subscribe(self.locomotion.on_key_event)
-        self.kb.subscribe(self.arm_controller.on_key_event)
-
-    _WARMUP_STEPS = 100  # physics steps before locomotion policy activates
+        # Keyboard controller
+        if scene_cfg.robot.enable_keyboard_controller:
+            from scripts.spot_isaacsim.control.interfaces.keyboard_controller import create_keyboard_controller
+            self.kb = create_keyboard_controller(headless=headless)
+            self.kb.subscribe(self.controller.locomotion.on_key_event)
+            if self.controller.arm_controller is not None:
+                self.kb.subscribe(self.controller.arm_controller.on_key_event)
+        else:
+            self.kb = None
+            print("[INFO] Keyboard controller disabled")
 
     def update(self) -> None:
-        """Step all robot controllers. Locomotion is gated until warmup is complete."""
-        if hasattr(self.kb, 'update'):
+        """Step all robot controllers."""
+        if self.kb is not None and hasattr(self.kb, 'update'):
             self.kb.update()
-        self._step_count += 1
-        if self._step_count >= self._WARMUP_STEPS:
-            self._loco_counter += 1
-            if self._loco_counter % self.locomotion.decimation == 0:
-                self.locomotion.forward(self._config.physics_dt * self.locomotion.decimation)
-        self.arm_controller.update()
-        if not self.arm_controller.is_tracking:
-            self.executor.update()
-        self.navigation_executor.update()
+        self.controller.update()
 
     def reinitialize(self) -> None:
-        """Re-run physics and locomotion init after a GUI stop → Play cycle."""
+        """Re-run physics and controller init after a GUI stop → Play cycle."""
         self._world.reset()
-        self._apply_all_physics(self._config.robot.prim_path)
-        self.locomotion.initialize()
-        x, y, yaw = self._config.robot.initial_goal_pose
-        self.locomotion.set_target_pose(x, y, yaw)
-        self._step_count = 0
-        self._loco_counter = 0
+        self.controller.reinitialize()
+
+    def set_base_pose(self, pose_2d: Tuple[float, float, float]) -> None:
+        """Navigate base to (x, y, yaw) and home arm."""
+        self.controller.set_base_pose(*pose_2d)
+
+    def set_ee_pose(self, target_position: np.ndarray,
+                    target_orientation: np.ndarray | None,
+                    reach: float = _BASE_REACH_M) -> None:
+        """Track target EE pose. Navigates base to standoff first if needed."""
+        self.controller.set_ee_pose(target_position, target_orientation, reach)
+
+    def set_grasp_pose(self, target_position: np.ndarray,
+                       target_orientation: np.ndarray,
+                       do_pick: bool = False) -> None:
+        """Approach pre-grasp → advance to grasp → close gripper. do_pick also retrieves."""
+        self.controller.set_grasp_pose(target_position, target_orientation, do_pick)
+
 
 
 def load_robot_from_urdf(
@@ -276,7 +236,7 @@ def load_robot_from_urdf(
     import_config.set_collision_from_visuals(False)
     import_config.set_merge_fixed_joints(False)
     import_config.set_fix_base(False)
-    import_config.set_self_collision(True)
+    import_config.set_self_collision(False)
     import_config.set_parse_mimic(False)
     import_config.set_replace_cylinders_with_capsules(False)
 

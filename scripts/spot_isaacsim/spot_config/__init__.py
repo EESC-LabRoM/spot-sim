@@ -8,7 +8,6 @@ Organizes configurations for:
 """
 
 from .cameras import (
-    CameraConfig,
     hand_camera_config,
     frontleft_camera_config,
     frontright_camera_config,
@@ -21,10 +20,15 @@ from .cameras import (
     add_zed_to_stage,
 )
 
-from .robot import (
-    PROJECT_ROOT,
+from .cfg.constants import (
+    SPOT_STANDING_ARM_JOINT_POSITION,
+    SPOT_RESTING_ARM_JOINT_POSITION,
     SPOT_STANDING_JOINT_POSITIONS,
     SPOT_DEFAULT_JOINT_POSITIONS,
+)
+
+from .robot import (
+    PROJECT_ROOT,
     RobotConfig,
     load_robot_from_urdf,
     load_robot_from_usd,
@@ -34,7 +38,6 @@ from .physics import apply_all_physics
 
 __all__ = [
     # Cameras
-    "CameraConfig",
     "hand_camera_config",
     "frontleft_camera_config",
     "frontright_camera_config",
@@ -45,10 +48,13 @@ __all__ = [
     "all_rgb_camera_configs",
     "ZedConfig",
     "add_zed_to_stage",
-    # Robot
-    "PROJECT_ROOT",
+    # Robot constants
+    "SPOT_STANDING_ARM_JOINT_POSITION",
+    "SPOT_RESTING_ARM_JOINT_POSITION",
     "SPOT_STANDING_JOINT_POSITIONS",
     "SPOT_DEFAULT_JOINT_POSITIONS",
+    # Robot config
+    "PROJECT_ROOT",
     "RobotConfig",
     # Robot loading
     "load_robot_from_urdf",

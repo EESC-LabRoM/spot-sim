@@ -1,0 +1,66 @@
+# Scene configuration for spot_isaacsim
+#
+# Objects and assets defined here are loaded automatically by SceneBuilder.
+# To disable an entry without removing it, set `enabled: false`.
+# To add a new object, append an entry under `objects` or `assets`.
+#
+# Supported object types:
+#   static_cube   — FixedCuboid (no physics simulation)
+#   dynamic_cube  — DynamicCuboid (physics, falls under gravity)
+#   Common optional fields (objects):
+#     orientation_rpy: [roll, pitch, yaw]  — rotation in degrees, ZYX extrinsic
+#                                            (default: [0.0, 0.0, 0.0])
+#
+# Supported asset types:
+#   usd_asset  — any USD/USDC/USDZ/mesh file (.glb, .fbx, .obj, .stl, .dae)
+#                usd_path is relative to the project root; mesh files are
+#                auto-converted to USD on first load and cached next to the source.
+#
+#   Physics config (optional physics: subtree):
+#     physics:
+#       enabled: true               — false → strip all baked physics, free-pose only
+#       rigid_body:
+#         mass: 0.8                 — override mass in kg on the Xform root
+#         gravity: true             — false → disable gravity for this object
+#       material:
+#         static_friction: 0.7      — applied to CollisionAPI Mesh children
+#         dynamic_friction: 0.7
+#
+#   Omit physics: entirely for assets with no rigid body (stage/environment USDs).
+#
+# Supported stage types (stage.type):
+#   warehouse_simple  — Isaac/Environments/Simple_Warehouse/warehouse.usd
+#   warehouse_full    — Isaac/Environments/Full_Warehouse/full_warehouse.usd
+#   (or provide usd_path only — no type — to load any USD as a scene stage)
+
+# ---- Robot -----------------------------------------------------------------
+
+robot:
+  spawn_position: [-2.5, 0.0, 0.7]       # x, y, z in metres
+  initial_goal_pose: [-2.0, 0.0, 0.0]     # x, y, yaw (metres, metres, radians)
+
+# ---- Stage / environment -----------------------------------------------
+# When stage.enabled is true the stage provides the floor and the ground
+# plane below is automatically skipped.
+
+stage:
+  enabled: true
+  type: warehouse_simple
+  prim_path: /World/Warehouse
+  position: [0.0, 0.0, 0.0]
+  scale: [1.0, 1.0, 1.0]
+  usd_path: assets/clutter/warehouse.usd
+
+# ---- Fallback ground plane (used when stage.enabled is false) ----------
+
+ground:
+  prim_path: /World/GroundPlane
+  size: 10.0
+  z_position: 0.0
+  color: [0.5, 0.5, 0.5]
+
+light:
+  type: dome
+  prim_path: /World/DomeLight
+  intensity: 4000.0
+  color: [0.9, 0.9, 0.9]
