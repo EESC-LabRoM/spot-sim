@@ -57,6 +57,14 @@ just run-spot-sim          # with viewport
 just run-spot-sim-h        # headless mode
 ```
 
+The `--task` flag selects a named task configuration (default: `_default`):
+
+```bash
+just run-spot-sim -- --task my_task
+```
+
+Each task lives in `scripts/spot_isaacsim/tasks/<name>/task.py` and owns its scene build, camera/bridge config, and lifecycle hooks.
+
 ## Project Structure
 
 ```
@@ -70,10 +78,13 @@ spot-isaacsim/
 ├── scripts/
 │   ├── spot_isaacsim/          # Main: Isaac Sim + ROS2 bridge
 │   │   ├── play.py               # Entry point (just run-spot-sim)
-│   │   ├── scene/                # Scene setup (builder.py, scene_cfg.yaml)
+│   │   ├── tasks/                # Named task configs (--task flag)
+│   │   ├── scene/                # Scene setup (builder.py, loaders/, scene_cfg.yaml)
 │   │   ├── omnigraph/            # ROS2 bridge (OmniGraph)
-│   │   ├── control/              # Grasp execution state machine
-│   │   └── spot_config/          # Robot configuration
+│   │   ├── control/
+│   │   │   ├── components/       # Locomotion, arm IK, collision avoidance
+│   │   │   └── interfaces/       # Keyboard and ROS controllers
+│   │   └── spot_config/          # Robot configuration and constants
 │   └── tools/                  # Utility scripts (install, patch)
 ├── justfile                    # Task runner (run 'just' for all commands)
 └── pyproject.toml              # uv dependency management
@@ -94,7 +105,7 @@ The simulation node is named `grasp_executor` and communicates over `ROS_DOMAIN_
 | `/joint_states` | `sensor_msgs/JointState` | Robot joint states |
 | `/tf` / `/tf_static` | `tf2_msgs/TFMessage` | Robot + camera transforms |
 
-Cameras: `hand`, `frontleft`, `frontright`, `left`, `right`, `rear` (enabled via `--cameras` flag).
+Cameras: `hand`, `frontleft`, `frontright`, `left`, `right`, `rear`. Which cameras are published is configured per-task via `publishing_cameras` in the task's `BridgeConfig`.
 
 ### Subscribed topics
 
@@ -115,11 +126,19 @@ Cameras: `hand`, `frontleft`, `frontright`, `left`, `right`, `rear` (enabled via
 | `/grasp_executor/home` | Return arm to home position |
 | `/grasp_executor/trajectory` | Execute a joint trajectory |
 
+## Documentation
+
+| Doc | Description |
+|---|---|
+| [docs/tasks.md](docs/tasks.md) | Task plugin system — how to create and configure tasks |
+| [docs/robot_control.md](docs/robot_control.md) | Keyboard and ROS2 control interfaces |
+
 ## Configuration
 
-- **Scene**: Edit `scripts/spot_isaacsim/scene/scene_cfg.yaml` to change objects, stage type, robot spawn position, and lighting.
+- **Tasks**: Create `scripts/spot_isaacsim/tasks/<name>/task.py` with a `Task` class implementing `build()`, `on_setup()`, `update()`, `on_reinitialize()`, `on_shutdown()`. Select it with `--task <name>`.
+- **Scene**: Edit `scripts/spot_isaacsim/scene/scene_cfg.yaml` to change objects, stage, robot spawn, and lighting. Asset physics uses a nested `physics:` block (`rigid_body`, `material`).
 - **Environment**: Use `just run <script>` to run scripts inside the simulation Python environment (via `uv run`).
-- **ROS2**: `ROS_DOMAIN_ID=77` is set automatically by all `just` recipes. Make sure the ROS2 consumer (NVBlox, ML nodes) uses the same domain ID.
+- **ROS2**: `ROS_DOMAIN_ID=77` and `RMW_IMPLEMENTATION=rmw_cyclonedds_cpp` are written into the venv activate script at install time. Make sure the ROS2 consumer uses the same domain ID.
 
 ## License
 
